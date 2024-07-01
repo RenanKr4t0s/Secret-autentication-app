@@ -1,8 +1,12 @@
 const express = require('express')
 const mongoose = require (`mongoose`)
-const encrypt = require('mongoose-encryption');
+// const encrypt = require('mongoose-encryption');
+//const md5 = require('md5')
 const ejs = require('ejs')
 const dotenv = require('dotenv')
+const bcrypt = require(`bcrypt`)
+const saltRounds = 10;
+
 
 dotenv.config()
 
@@ -19,7 +23,7 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password'] });
+//userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password'] });
 
 let UserBank = mongoose.model('users',userSchema)
 
@@ -37,26 +41,32 @@ app.get('/register', (req, res) => {
     res.render('register')
 })
 
-app.post('/register', async(req,res)=>{
-    try {
-        const newUser = new UserBank({
-            email: req.body.email,
-            password: req.body.password
-        })
-        await newUser.save().then(()=>console.log('user saved'+newUser))
-        res.render('secrets')
-        
-    } catch (error) {
-        console.log("Oops, algo deu errado ",error)
-    }
+app.post('/register', (req,res)=>{
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        try {
+            const newUser = new UserBank({
+                email: req.body.email,
+                password: hash
+            })
+            newUser.save().then(()=>console.log('user saved with success'))
+            res.render('secrets')
+            
+        } catch (error) {
+            console.log("Oops, algo deu errado ",error)
+        }
+    });
 })
 
 app.post('/login', async (req, res) => {
+    const testEmail =  req.body.email
+    const testPassword =  req.body.password
     try {
-        const testEmail =  req.body.email
-        const testPassword =  req.body.password
-        isRegistered = await UserBank.findOne({email:testEmail, password: testPassword}).exec()
-        isRegistered ? res.render('secrets') : res.send('<h2> Dados incorretos para logon</h2>')
+        isRegistered = await UserBank.findOne({email:testEmail}).exec()
+        bcrypt.compare(testPassword, isRegistered.password, function(err, result) {
+            result ? res.render('secrets') : res.send('<h2> Dados incorretos</h2>')
+            console.log("o user é "+isRegistered.email)
+        });
+
     } catch (error) {
         console.log("Oops, algo deu errado ",error)
     }
